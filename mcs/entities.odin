@@ -1,22 +1,21 @@
-package ecs
+package mcs
 
 Eid :: u16
 
-// Entity State
-// ================================================
 Entity_State :: struct {
-    data:       #soa[dynamic]Entity_Data,
-    components: [dynamic]bit_set[Component_Flags],
-    dense:      [dynamic]Eid,
-    sparse:     [dynamic]Eid,
-    free_list:  [dynamic]Eid,
+    data:         #soa[dynamic]Entity_Data,
+    components:   [dynamic]bit_set[Component_Flags],
+    dense:        [dynamic]Eid,
+    sparse:       [dynamic]Eid,
+    free_list:    [dynamic]Eid,
+    entity_count: int
 }
 
 entity_state_init :: proc(es: ^Entity_State) {
     es.free_list = make([dynamic]Eid)
-    es.dense = make([dynamic]Eid)
-    es.sparse = make([dynamic]Eid)
-    es.data = make(#soa[dynamic]Entity_Data)
+    es.dense     = make([dynamic]Eid)
+    es.sparse    = make([dynamic]Eid)
+    es.data      = make(#soa[dynamic]Entity_Data)
 }
 
 entity_state_free :: proc(es: ^Entity_State) {
@@ -26,8 +25,11 @@ entity_state_free :: proc(es: ^Entity_State) {
     delete(es.data)
 }
 
-// Entity State Iter
-// ================================================
+Archetype :: struct {
+    components: Entity_Data,
+    flags:      bit_set[Component_Flags]
+}
+
 Entity_State_Iter :: struct {
     es:     Entity_State,
     idx:    Eid,
@@ -38,12 +40,10 @@ make_entity_state_iter :: proc(es: Entity_State, filter: bit_set[Component_Flags
     return {es, 0, filter}
 }
 
-// Query State
-// ================================================
 Query_State :: struct {
     entity_state: ^Entity_State,
-    it: Entity_State_Iter,
-    it_init: bool
+    it:           Entity_State_Iter,
+    it_init:      bool
 }
 
 query_state_init :: proc(qs: ^Query_State, es: ^Entity_State) {
@@ -119,7 +119,12 @@ entity_query_iter_ptr :: proc(it: ^Entity_State_Iter, es: Entity_State, filter: 
     return
 }
 
-entity_create :: proc(entity_state: ^Entity_State, init_data: Entity_Data = {}, components: bit_set[Component_Flags] = {}) -> (ret_eid: Eid) {
+entity_create :: proc {
+    entity_create_params,
+    entity_create_archetype
+}
+
+entity_create_params :: proc(entity_state: ^Entity_State, init_data: Entity_Data = {}, components: bit_set[Component_Flags] = {}) -> (ret_eid: Eid) {
     init_data := init_data
     dense_idx := Eid(len(entity_state.data))
     append(&entity_state.data, init_data)
@@ -132,16 +137,35 @@ entity_create :: proc(entity_state: ^Entity_State, init_data: Entity_Data = {}, 
     }
     append(&entity_state.dense, ret_eid)
     append(&entity_state.components, components)
+    entity_state.entity_count += 1
+    return
+}
+
+entity_create_archetype :: proc(entity_state: ^Entity_State, archetype: Archetype) -> (ret_eid: Eid) {
+    dense_idx := Eid(len(entity_state.data))
+    append(&entity_state.data, archetype.components)
+    if len(entity_state.free_list) > 0 {
+        ret_eid = pop(&entity_state.free_list)
+        entity_state.sparse[ret_eid] = dense_idx
+    } else {
+        ret_eid = Eid(len(entity_state.sparse))
+        append(&entity_state.sparse, dense_idx)
+    }
+    append(&entity_state.dense, ret_eid)
+    append(&entity_state.components, archetype.flags)
+    entity_state.entity_count += 1
     return
 }
 
 entity_delete :: proc(entity_state: ^Entity_State,  eid: Eid) {
+    dense_idx := entity_state.sparse[eid]
     last := len(entity_state.dense) - 1
     entity_state.sparse[entity_state.dense[last]] = eid
     entity_state.sparse[eid] = 0
-    unordered_remove(&entity_state.dense, eid)
-    unordered_remove(&entity_state.components, eid)
-    unordered_remove_soa(&entity_state.data, eid)
+    unordered_remove(&entity_state.dense, dense_idx)
+    unordered_remove(&entity_state.components, dense_idx)
+    unordered_remove_soa(&entity_state.data, dense_idx)
+    entity_state.entity_count -= 1
 }
 
 entity_get :: proc(entity_state: ^Entity_State, eid: Eid) -> (Entity_Data, bool) {
