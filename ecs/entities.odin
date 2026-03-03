@@ -46,7 +46,7 @@ Query_State :: struct {
     it_init: bool
 }
 
-init_query_state :: proc(qs: ^Query_State, es: ^Entity_State) {
+query_state_init :: proc(qs: ^Query_State, es: ^Entity_State) {
     qs.entity_state = es
 }
 
