@@ -44,7 +44,7 @@ main :: proc() {
 
     // init mcs system
     // ------------------------------
-    es: mcs.Entity_State(Entity_Data, Component_Flags) 
+    es: mcs.Entity_State(Data, Comp) 
     mcs.entity_state_init(&es); defer mcs.entity_state_free(&es)
 
     // create entities
