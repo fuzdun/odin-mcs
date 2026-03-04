@@ -28,7 +28,10 @@ Entity_Data :: struct {
     target: mcs.Eid,
 }
 
-Running_Man: mcs.Archetype(Entity_Data, Component_Flags): {
+Data :: Entity_Data              // shorthand alias for entity data type
+Comp :: bit_set[Component_Flags] // shorthand alias for component flags type
+
+Running_Man: mcs.Archetype(Data, Comp): {
     components = {
         hp = 10,
         position = {0, 0},
@@ -36,9 +39,6 @@ Running_Man: mcs.Archetype(Entity_Data, Component_Flags): {
     },
     flags = {.Hp, .Position, .Velocity}
 }
-
-Data :: Entity_Data              // shorthand alias for entity data type
-Comp :: bit_set[Component_Flags] // shorthand alias for component flags type
 
 main :: proc() {
 
