@@ -3,8 +3,11 @@
 ## a tiny ECS-like package for megastruct enthusiasts
 
 ### Example usage:
-#### components.odin:
 ```odin
+package main
+
+import "mcs"
+
 Component_Flags :: enum {
     Position,
     Velocity,
@@ -22,10 +25,10 @@ Entity_Data :: struct {
     velocity: [2]int,
     hp: f32,
     on_fire: On_Fire,
-    target: Eid,
+    target: mcs.Eid,
 }
 
-Running_Man: Archetype: {
+Running_Man: mcs.Archetype(Entity_Data, Component_Flags): {
     components = {
         hp = 10,
         position = {0, 0},
@@ -33,65 +36,74 @@ Running_Man: Archetype: {
     },
     flags = {.Hp, .Position, .Velocity}
 }
-```
 
-#### main.odin:
-```odin
-import "mcs"
+Data :: Entity_Data              // shorthand alias for entity data type
+Comp :: bit_set[Component_Flags] // shorthand alias for component flags type
 
 main :: proc() {
-    es: mcs.Entity_State 
-    mcs.entity_state_init(&es)
-    defer mcs.entity_state_free(&es)
 
-    qs: mcs.Query_State
-    mcs.query_state_init(&qs, &es)
+    // init mcs system
+    // ------------------------------
+    es: mcs.Entity_State(Entity_Data, Component_Flags) 
+    mcs.entity_state_init(&es); defer mcs.entity_state_free(&es)
 
-    e0 := mcs.entity_create(&es, mcs.Running_Man) // create using archetype
+    // create entities
+    // ------------------------------
+    e0 := mcs.entity_create(&es, Running_Man) // create using archetype
 
-    e1 := mcs.entity_create(&es, { // create manually
+    e1 := mcs.entity_create(&es, Data{        // create manually
         hp = 10,
         position = {-5, -5},
         velocity = {1, 1},
         on_fire = {heat = 20},
         target = e0
-    }, {.Hp, .Position, .Velocity, .On_Fire, .Target})
+    }, Comp{.Hp, .Position, .Velocity, .On_Fire, .Target})
 
+    // simulated frame loop
+    // ------------------------------
     frame_loop: for {
 
+        // entity 1 runs NE, shooting entity 0 to death before burning alive :)
+
         // move entities with position and velocity
-        for e in mcs.entity_query_ptr(&qs, {.Position, .Velocity}) {
+        // ------------------------------
+        for e in mcs.entity_query_ptr(&es, Comp{.Position, .Velocity}) {
             e.position += e.velocity
         }
 
         // reduce heat of burning entities
-        for e, eid in mcs.entity_query_ptr(&qs, {.On_Fire}) {
+        // ------------------------------
+        for e, eid in mcs.entity_query_ptr(&es, Comp{.On_Fire}) {
             e.on_fire.heat = max(0, e.on_fire.heat - 1)
             if e.on_fire.heat == 0 {
-                mcs.deactivate_components(&es, eid, {.On_Fire})
+                mcs.sub_components(&es, eid, Comp{.On_Fire})
             }
         }
 
         // reduce health of burning entities
-        for e in mcs.entity_query_ptr(&qs, {.On_Fire, .Hp}) {
+        // ------------------------------
+        for e in mcs.entity_query_ptr(&es, Comp{.On_Fire, .Hp}) {
             e.hp = max(0, e.hp - 1)
         }
 
         // entities shoot at targets
-        for e_shooter in mcs.entity_query(&qs, {.Target}) {
+        // ------------------------------
+        for e_shooter in mcs.entity_query(&es, Comp{.Target}) {
             if e_target, ok := mcs.entity_get_ptr(&es, e_shooter.target); ok {
-                e_target.hp = max(0, e_target.hp - 1) 
+                e_target.hp = max(0, e_target.hp - 1.5) 
             }
         }
 
         // remove entities with 0 hp
-        for e, eid in mcs.entity_query(&qs, {.Hp}) {
+        // ------------------------------
+        for e, eid in mcs.entity_query(&es, Comp{.Hp}) {
             if e.hp == 0 {
                 mcs.entity_delete(&es, eid)
             }
         }
 
         // end loop when everyone is dead
+        // ------------------------------
         if es.entity_count == 0 {
             break frame_loop
         }
