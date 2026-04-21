@@ -153,7 +153,7 @@ entity_create_archetype :: proc(entity_state: ^Entity_State($T, $C), archetype: 
 entity_delete :: proc(entity_state: ^Entity_State($T, $C),  eid: Eid) {
     dense_idx := entity_state.sparse[eid]
     last := len(entity_state.dense) - 1
-    entity_state.sparse[entity_state.dense[last]] = eid
+    entity_state.sparse[entity_state.dense[last]] = dense_idx
     entity_state.sparse[eid] = 0
     unordered_remove(&entity_state.dense, dense_idx)
     unordered_remove(&entity_state.components, dense_idx)
